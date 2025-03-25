@@ -1,0 +1,217 @@
+### Servo w/ Ultrasonic & motors ### PLEASE WORK
+
+from machine import Pin, PWM
+from ultrasonic import sonic
+from time import sleep
+from motor import Motor
+
+
+# MOTOR VARIABLES
+front = 98
+right = 34
+left = 170
+
+# SERVO STUFF
+pwm = PWM(15)
+pwm.freq(50)
+
+def set_servo_ang(angle):
+    position = int(8000 * (angle / 180) + 1000)  # convert the angle to something between 4000 and 9000
+    pwm.duty_u16(position)
+
+set_servo_ang(right)
+sleep(0.5)
+set_servo_ang(left)
+sleep(0.5)
+set_servo_ang(front)
+sleep(0.5)
+
+# ULTRASONIC SENSOR STUFF
+print("Hello, world!")  # Print a welcome message on reset
+TRIG = 13
+ECHO = 14
+ultrasonic_sensor = sonic(TRIG, ECHO)
+
+# MOTOR STUFF
+m_left = Motor("left", 8, 9, 6)
+m_right = Motor("right", 10, 11, 7)
+
+def Motor_Speed(speed):
+    if speed != 0:
+        m_left.duty(speed + 15)
+        m_right.duty(speed)
+    else:
+        m_right.duty(speed)
+        m_left.duty(speed)
+
+# IR SENSOR STUFF
+line_sensor = Pin(12, Pin.IN)
+
+# OTHER VARIABLES
+dist = 0
+ok_to_run = True
+SweepD = 1
+
+# MAIN LOOP
+while line_sensor.value() == 0:
+
+    set_servo_ang(front)
+
+    dist = ultrasonic_sensor.distance_mm()
+    m_left.set_forwards()
+    m_right.set_forwards()
+    #print("Distance = {:6.2f} [mm]".format(dist))  # print distance as it goes
+
+    Motor_Speed(60)
+    sleep(0.1)
+    Motor_Speed(0)
+    sleep(0.2)
+
+    Distance_Check_List = []
+    angle = -50*SweepD
+
+    for i in range(0, 20):
+
+        set_servo_ang(front + angle)
+        angle += 5*SweepD
+        sleep(0.1)
+        for j in range(0, 10):
+            temp_dist = ultrasonic_sensor.distance_mm()
+            if temp_dist > 0:
+                i = temp_dist
+                Distance_Check_List.append(i)
+            else:
+                y = 1 + 1       # just so it doesn't throw a hissy fit
+
+    dist = min(Distance_Check_List)
+    sleep(0.37)
+    SweepD = SweepD * -1
+    print(f"distance check list is {Distance_Check_List} and the min is {dist}")
+
+    if 145 > dist > 0 and dist != -0.170145:        #detect anything at all
+        m_left.duty(0)
+        m_right.duty(0)
+
+        m_left.set_backwards()
+        m_right.set_forwards()
+        print("obstacle detected")
+
+        print("turning my head right")
+        set_servo_ang(right)
+        sleep(0.5)
+
+        dist = ultrasonic_sensor.distance_mm()
+
+        if dist >= 145 or dist == -0.170145:        #detect a flat wall (i.e. nothing to the right)
+
+            print("i dont suck")
+
+            while (dist > 175 or dist == -0.170145) and line_sensor.value() == 0:      #if nothing there (flat wall)
+                print("im against a flat wall")
+                m_right.duty(40)
+                m_left.duty(40)
+                sleep(0.1)
+                m_right.duty(0)
+                m_left.duty(0)
+                print("--------TURNING")
+
+                Distance_Check_List = []
+                angle = -15 * SweepD
+
+                '''for i in range(0, 8):
+
+                    set_servo_ang(right + angle)
+                    angle += 5 * SweepD
+                    sleep(0.1)'''
+                for j in range(0, 10):
+                    temp_dist = ultrasonic_sensor.distance_mm()
+                    if temp_dist > 0:
+                        i = temp_dist
+                        Distance_Check_List.append(i)
+                    else:
+                        y = 1 + 1       # just so it doesn't throw a hissy fit
+
+                dist = min(Distance_Check_List)
+
+                sleep(0.5)
+                print(f"distance check list is {Distance_Check_List} and the min is {dist}")
+
+        elif dist <= 175 or dist == -0.170145:        #detect another wall i.e. it's in a corner
+            print("im in a corner")
+
+            while (dist < 175 and dist != -0.170145) and line_sensor.value() == 0:     #turn until it is close to a wall
+
+                m_left.set_backwards()
+                m_right.set_forwards()
+                Motor_Speed(50)
+                sleep(0.1)
+                Motor_Speed(0)
+
+                Distance_Check_List = []
+
+                angle = -10 * SweepD
+
+                for i in range(0, 4):
+
+                    set_servo_ang(right + angle)
+                    angle += 5 * SweepD
+                    sleep(0.1)
+                    for j in range(0, 10):
+                        temp_dist = ultrasonic_sensor.distance_mm()
+                        if temp_dist > 0:
+                            i = temp_dist
+                            Distance_Check_List.append(i)
+                        else:
+                            y = 1 + 1       # just so it doesn't throw a hissy fit
+
+                dist = min(Distance_Check_List)
+                sleep(0.37)
+                SweepD = SweepD * -1
+
+            '''while (dist < 175 and dist != -0.170145) and line_sensor.value() == 0:
+
+                m_left.set_forwards()
+                m_right.set_backwards()
+                Motor_Speed(50)
+                sleep(0.1)
+                Motor_Speed(0)
+
+                Distance_Check_List = []
+                angle = -25 * SweepD
+
+                for i in range(0, 10):
+
+                    set_servo_ang(right + angle)
+                    angle += 5 * SweepD
+                    sleep(0.1)
+                    for j in range(0, 10):
+                        temp_dist = ultrasonic_sensor.distance_mm()
+                        if temp_dist > 0:
+                            i = temp_dist
+                            Distance_Check_List.append(i)
+                        else:
+                            y = 1 + 1       # just so it doesn't throw a hissy fit
+                dist = min(Distance_Check_List)
+                sleep(0.37)
+                SweepD = SweepD * -1
+                print(f"distance check list is {Distance_Check_List} and the min is {dist}")'''
+m_left.set_forwards()
+m_right.set_forwards()
+Motor_Speed(0)
+sleep(0.2)
+Motor_Speed(50)
+sleep(0.2)
+Motor_Speed(0)
+
+set_servo_ang(right)
+sleep(0.5)
+set_servo_ang(left)
+sleep(0.5)
+set_servo_ang(right)
+sleep(0.5)
+set_servo_ang(left)
+sleep(0.5)
+set_servo_ang(right)
+sleep(0.5)
+set_servo_ang(left)
+sleep(0.5)
