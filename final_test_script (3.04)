@@ -1,3 +1,10 @@
+###### READ ME ######
+''' All the stuff in docstrings 
+are for the encoder that we 
+haven't gotten working yet '''
+
+
+
 from machine import Pin, PWM
 from machine import Pin, UART
 
