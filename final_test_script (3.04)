@@ -1,0 +1,174 @@
+from machine import Pin, PWM
+from machine import Pin, UART
+
+#from encoder_cal import motor_left, motor_right
+#from encoder_cal import motor_left
+
+from ultrasonic import sonic
+from time import sleep
+from motor import Motor
+from machine import Pin, I2C
+from ssd1306 import SSD1306_I2C
+import framebuf
+
+#OLED DISPLAY STUFF
+width = 128
+height = 64
+
+i2c = I2C(1, scl = Pin(19), sda = Pin(18), freq=400000)
+
+display = SSD1306_I2C(width, height, i2c)
+
+buffer = [""] * (height // 10)
+
+def screen_show(new_text):
+    global buffer
+    buffer = buffer[1:] + [new_text]
+    display.fill(0)
+    for i, text in enumerate(buffer):
+        display.text(text, 0, i * 10)
+
+    display.show()
+
+def screen_clear():
+    display.fill(0)
+    display.show()
+    screen_line = 0
+
+
+# MOTOR VARIABLES
+front = 98
+right = 34
+left = 170
+
+# SERVO STUFF
+pwm = PWM(15)
+pwm.freq(50)
+
+def set_servo_ang(angle):
+    position = int(8000 * (angle / 180) + 1000)  # convert the angle to something between 4000 and 9000
+    pwm.duty_u16(position)
+
+set_servo_ang(right)
+sleep(0.5)
+set_servo_ang(left)
+sleep(0.5)
+set_servo_ang(front)
+sleep(0.5)
+
+# ULTRASONIC SENSOR STUFF
+print("Hello, world!")  # Print a welcome message on reset
+TRIG = 13
+ECHO = 14
+ultrasonic_sensor = sonic(TRIG, ECHO)
+
+# MOTOR STUFF
+m_left = Motor("left", 8, 9, 6)
+m_right = Motor("right", 10, 11, 7)
+
+def Motor_Speed(speed, turnStrength):
+    m_left.set_forwards()
+    m_right.set_forwards()
+    m_left.duty(speed + turnStrength)      #WE GOT RID OF THE +15
+    m_right.duty(speed - turnStrength + 15)
+
+    m_right.duty(speed)
+    m_left.duty(speed)
+
+
+'''uart1 = UART(0, baudrate=115200, tx=Pin(0), rx=Pin(1))
+
+def count(): # function for retrieving combined total counts
+    msg = uart1.read(150)
+    while msg is None:
+        msg = uart1.read(150)
+    msg = msg.decode("utr-8") # Turn bytes object into a Python string
+    Total_L = int(msg.split(" ")[0]) # Left Encoder count
+    Total_R = int(msg.split(" ")[1]) # Right Encoder count
+    Total = Total_L + Total_R
+    return Total
+
+def Lspeed(): # function for retrieving left motor speed
+    msg = uart1.read(150)
+    while msg is None:
+        msg = uart1.read(100)
+    msg = msg.decode("utr-8") # Turn bytes object into a Python string
+    Rate_L = int(msg.split(" ")[2]) # Left Encoder speed
+    return Rate_L
+
+def Rspeed():
+    msg = uart1.read(150)  # Reads up to 150 bytes of data
+    while msg is None:  # Waits until valid data is received
+        msg = uart1.read(150)
+    msg = msg.decode('utr-8')  # Decodes received bytes into a string (assumes utf-8 encoding)
+    Rate_R = int(msg.split(' ')[2])
+    return Rate_R'''
+
+
+# IR SENSOR STUFF
+
+line_sensor_M = Pin(12, Pin.IN)
+line_sensor_L = Pin(17, Pin.IN)
+line_sensor_R = Pin(16, Pin.IN)
+
+# OTHER VARIABLES
+dist = 0
+ok_to_run = True
+SweepD = 1
+
+
+display.fill(1)
+display.show()
+sleep(1)
+screen_clear()
+screen_show("ready to go")
+sleep(1)
+screen_clear()
+
+# MAIN LOOP
+while ok_to_run == True:
+    #print("{:3d}, {:3d}, {:3d}".format(pwm, Lspeed, Rspeed))
+    Motor_Speed(0,0)
+    display_line_R = str("line_R = " + str(line_sensor_R.value()))
+    display_line_L = str("line_L = " + str(line_sensor_L.value()))
+    display_line_M = str("line_M = " + str(line_sensor_M.value()))
+    #screen_show("searching...")
+
+
+    #ENCODER STUFF
+    '''msg = uart1.read(150)
+    if msg is not None:
+        msg = msg.decode("utr - 8")  # Turn bytes object into a Python string
+        Total_L = int(msg.split(" ")[0])  # Left Encoder count
+        Total_R = int(msg.split(" ")[1])  # Right Encoder count
+        Rate_L = int(msg.split(" ")[2])  # Left Encoder speed
+        Rate_R = int(msg.split(" ")[3])  # Right Encoder speed
+        print(Rate_L, Rate_R, Total_L, Total_R)'''
+
+
+    while line_sensor_M.value() == 1:
+        Motor_Speed(45,0)
+        screen_show("driving forwards")
+
+    while line_sensor_L.value() == 1:
+        Motor_Speed(45, -5)
+        screen_show("turning left")
+        sleep(0.2)
+
+    while line_sensor_R.value() == 1:
+        Motor_Speed(45, 5)
+        screen_show("turning right")
+        sleep(0.2)
+
+
+
+
+
+
+
+
+
+
+
+
+
