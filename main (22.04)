@@ -1,0 +1,126 @@
+## READ ME ##
+# this code was the end result of the milestone to simply make the robot follow a line, it was tested on some of the simpler track segments
+
+from machine import Pin, PWM
+from ultrasonic import sonic
+from time import sleep
+from motor import Motor
+from machine import Pin, I2C
+from ssd1306 import SSD1306_I2C
+import framebuf
+
+# USER VARIABLES
+SP = 25 #speed (duty)
+TS = 25 #turn strength
+
+# OLED DISPLAY STUFF
+width = 128
+height = 64
+
+i2c = I2C(1, scl = Pin(19), sda = Pin(18), freq=400000)
+display = SSD1306_I2C(width, height, i2c)
+buffer = [""] * (height // 10)
+
+def screen_show(new_text):
+    global buffer
+    buffer = buffer[1:] + [new_text]
+    display.fill(0)
+    for i, text in enumerate(buffer):
+        display.text(text, 0, i * 10)
+
+    display.show()
+def screen_clear():
+    display.fill(0)
+    display.show()
+    screen_line = 0
+
+# SERVO STUFF
+front = 98
+right = 34
+left = 170
+
+pwm = PWM(15)
+pwm.freq(50)
+
+def set_servo_ang(angle):
+    position = int(8000 * (angle / 180) + 1000)  # convert the angle to something between 4000 and 9000
+    pwm.duty_u16(position)
+
+set_servo_ang(right)
+sleep(0.5)
+set_servo_ang(left)
+sleep(0.5)
+set_servo_ang(front)
+sleep(0.5)
+
+# ULTRASONIC SENSOR STUFF
+TRIG = 13
+ECHO = 14
+ultrasonic_sensor = sonic(TRIG, ECHO)
+
+# MOTOR STUFF
+m_left = Motor("left", 8, 9, 6)
+m_right = Motor("right", 10, 11, 7)
+
+def Motor_Speed(SP, TS):    #NOTE: -ve TS = LEFT turn, +ve TS = RIGHT turn
+    m_left.set_forwards()
+    m_right.set_forwards()
+    m_left.duty(SP + TS)
+    m_right.duty(SP - TS)
+
+
+# IR SENSOR STUFF
+line_sensor_M = Pin(12, Pin.IN)
+line_sensor_L = Pin(17, Pin.IN)
+line_sensor_R = Pin(16, Pin.IN)
+
+display_line_R = str("line_R = " + str(line_sensor_R.value()))
+display_line_L = str("line_L = " + str(line_sensor_L.value()))
+display_line_M = str("line_M = " + str(line_sensor_M.value()))
+
+# OTHER VARIABLES
+dist = 0
+ok_to_run = True
+SweepD = 1
+
+# OLED INITIALISATION MESSAGE
+display.fill(1)
+display.show()
+sleep(1)
+screen_clear()
+screen_show("ready to go")
+sleep(1)
+screen_clear()
+
+# MAIN LOOP
+while ok_to_run == True:
+    screen_show("searching...")
+
+
+
+    while line_sensor_M.value() == 1:
+        Motor_Speed(SP,TS)
+        screen_show("driving forwards")
+        last_cmd = "M"
+
+    while line_sensor_L.value() == 1:
+        Motor_Speed(SP, -TS)
+        screen_show("turning left")
+        last_cmd = "L"
+
+    while line_sensor_R.value() == 1:
+        Motor_Speed(SP, TS)
+        screen_show("turning right")
+        last_cmd = "R"
+
+    while line_sensor_R.value() == 0 and line_sensor_L.value() == 0 and line_sensor_M.value() == 0:
+
+        if last_cmd == "R":
+            screen_show("remember - R")
+            Motor_Speed(SP, TS)
+            # sleep(0.2)
+
+        if last_cmd == "L":
+            screen_show("remember - L")
+            Motor_Speed(SP, -TS)
+            # sleep(0.2)
