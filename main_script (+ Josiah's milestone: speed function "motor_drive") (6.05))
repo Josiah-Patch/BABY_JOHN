@@ -1,0 +1,372 @@
+from machine import Pin, PWM
+from machine import Pin, I2C
+from ultrasonic import sonic
+import time
+from time import sleep
+from motor import Motor
+from ssd1306 import SSD1306_I2C
+import _thread
+from encoder import Encoder
+
+# USER VARIABLES
+SP = 25  #speed (cm/s)
+TS = 25 #turn strength
+blind_duty = 30 #starting point for driving in motor_drive = 25
+speed_correction = 20
+
+distance_threshold = 100    #for ultrasonic background function
+example = 'Im doing something'  #for luke's milestone
+
+front = 90  #servo
+right = 34  #servo
+left = 170  #servo
+ok_to_run = True  #for main_loop()
+just_drive = True   #for motor_drive()
+last_cmd = "start"
+
+line_sensor_value = 0
+
+# OLED DISPLAY
+width = 128
+height = 64
+
+i2c = I2C(1, scl = Pin(19), sda = Pin(18), freq=400000)
+display = SSD1306_I2C(width, height, i2c)
+buffer = [""] * (height // 10)
+
+def screen_show(new_text):
+    global buffer
+    buffer = buffer[1:] + [new_text]
+    display.fill(0)
+    for i, text in enumerate(buffer):
+        display.text(text, 0, i * 10)
+
+    display.show()
+def screen_clear():
+    display.fill(0)
+    display.show()
+    screen_line = 0
+
+display.fill(1)
+display.show()
+sleep(1)
+screen_clear()
+screen_show("ready to go")
+sleep(1)
+screen_clear()
+
+# SERVO
+pwm = PWM(15)
+pwm.freq(50)
+
+def set_servo_ang(angle):
+    position = int(8000 * (angle / 180) + 1000)  # convert the angle to something between 4000 and 9000
+    pwm.duty_u16(position)
+
+set_servo_ang(right)
+sleep(1)
+set_servo_ang(left)
+sleep(1)
+set_servo_ang(front)
+sleep(1)
+
+# ULTRASONIC SENSOR
+TRIG = 13
+ECHO = 14
+ultrasonic_sensor = sonic(TRIG, ECHO)
+
+def Ultrasonic_background_scanning():
+    '''NEED TO KNOW FOR MULTITHREADING: (ASK LUKE IF YOU HAVE FURTHER QUESTIONS)
+    This is a process running in parallel to the main script.
+    DO NOT try to use the "screen_show" function in this process
+    as the robot will throw a tantrum, print function still works
+    fine. if you need to share a variable between this process and
+    main script follow the way "example" is set up. If you would
+    like to end this process use "_thread.exit()"'''
+    global example
+    angle = 0
+    distance = 1000
+    sign = 1
+
+    while True:
+
+        while distance > distance_threshold: #check if the robot is within the set detection range of an obstacle
+
+            #update the distance of the ultrasonic
+            if ultrasonic_sensor.distance_mm() != -0.170145:
+                prev_distance = distance
+                distance = ultrasonic_sensor.distance_mm()
+                if distance == -0.170145:
+                    distance = prev_distance
+            #move servo
+            set_servo_ang(front+angle)
+            #increment angle
+            if angle > 30:
+                sign = -3
+            elif angle < -30:
+                sign = 3
+            angle += sign
+
+        motor_stop() #stop motors example probably remove
+        example = 'Im doing something else'
+        _thread.exit() #exit this process
+
+# INFRARED SENSOR
+line_sensor_M = Pin(12, Pin.IN)
+line_sensor_L = Pin(17, Pin.IN)
+line_sensor_R = Pin(16, Pin.IN)
+
+display_line_R = str("line_R = " + str(line_sensor_R.value()))
+display_line_L = str("line_L = " + str(line_sensor_L.value()))
+display_line_M = str("line_M = " + str(line_sensor_M.value()))
+
+# ENCODER
+ENC_L = 4
+ENC_R = 2
+enc = Encoder(ENC_L, ENC_R)
+
+def cm(x):
+    d = (49/30) * x
+    return d
+
+# MOTOR STUFF
+
+'''motor variables:'''
+m_left = Motor("left", 8, 9, 6)
+m_right = Motor("right", 10, 11, 7)
+
+begin_time = time.time_ns() # This is the time the code starts (kinda)
+start_time = begin_time # This sets the variable to not change to the current time whenever it is called
+time_diff = 0 #not sure if we still use this (don't touch though just in case)
+right_encoder_diff = 0 #not sure if we still use this (don't touch though just in case)
+left_encoder_diff = 0 #not sure if we still use this (don't touch though just in case)
+right_speed = 0 #speed of the right wheel over the elapsed time since the wheel speed functions were called
+left_speed = 0 #speed of the right wheel over the elapsed time since the wheel speed functions were called
+
+'''motor functions'''
+
+def motor_speed(SP, TS):#NOTE: -ve TS = LEFT turn, +ve TS = RIGHT turn
+    m_left.set_forwards()
+    m_right.set_forwards()
+    m_left.duty(SP + TS)
+    m_right.duty(SP - TS)
+
+def motor_stop():
+    m_left.duty(0)
+    m_right.duty(0)
+
+#not sure if we still use this (below) (don't touch though just in case)
+def print_variables():
+    # not sure if we still use this (don't touch though just in case)
+    print(f"right encoderdiff = {right_encoder_diff}")
+    print(f"left encoder diff = {left_encoder_diff}")
+    print(f"time diff = {time_diff}")
+
+def avg_total_speed():
+    # average speed of both wheels COMBINED
+    # I don't think we use this at the moment, but we may in future
+    global start_time
+    while True:
+        avg_encoder_count = (enc.get_right() + enc.get_left()) / 2
+        distance = (avg_encoder_count * 10.21) / 10
+        # one encoder notch translates to 3.25 mm of ground covered
+        # (then correct from mm to cm for ease of use)
+        elapsed_time = (time.time_ns() - start_time) * 10**-9
+
+        speed = distance / elapsed_time
+        #print(f"START TIME = {start_time}")
+        # #(debug) can uncomment to ensure that start time stays the same
+        print(f"{speed}cm/s")
+
+        return speed # returns an OVERALL speed
+
+def avg_wheel_speed():
+    # average speed of both wheels SEPARATELY
+    # i.e. it returns a speed for EACH wheel
+    global start_time
+    global left_speed
+    global right_speed
+    while True:
+        left_encoder_count = enc.get_left()
+        right_encoder_count = enc.get_right()
+
+        left_distance = (left_encoder_count * 10.21) / 10
+        right_distance = (right_encoder_count * 10.21) / 10
+        # one encoder notch translates to 3.25 mm of ground covered
+        # (then correct from mm to cm for ease of use)
+        print(f"left encoder count = {left_encoder_count}")
+        print(f"right encoder count = {right_encoder_count}")
+        elapsed_time = (time.time_ns() - start_time) * 10**-9
+
+        left_speed = left_distance / elapsed_time
+        right_speed = right_distance / elapsed_time
+        #print(f"START TIME = {start_time}")
+        # #(debug) can uncomment to ensure that start time stays the same
+        print(f"RIGHT speed = {right_speed}cm/s")
+        print(f"LEFT speed = {left_speed}cm/s")
+
+        return left_speed, right_speed # returns a speed for EACH wheel
+
+def motor_drive(speed, turn_strength = 0, distance = None): #NOT FINISHED
+    global new_loop_started, just_drive, TS, blind_duty
+
+    just_drive = True # So we can stop it from ever starting if we need
+    toggle = True  # A flag to switch between functions
+
+
+    if distance is not None: # if the function is given any distance argument
+            while (enc.get_left() + enc.get_right()) / 2 < cm(distance): # while the wheels TOTAL distance is less than the given distance
+                print("In distance loop")
+                if toggle: # will enter this loop first, then every other time
+                    avg_wheel_speed()
+                else: # will enter this loop every second time
+                    m_left.set_forwards()
+                    m_right.set_forwards()
+                    m_left.duty(blind_duty)
+                    m_right.duty(blind_duty)
+
+                    if right_speed > speed:
+                        print("R >")
+                        print(f"{right_speed} > {speed}")
+
+                        m_right.duty(blind_duty - turn_strength)
+
+                    if right_speed < speed:
+                        print("R <")
+                        print(f"{right_speed} < {speed}")
+
+                        m_right.duty(blind_duty - turn_strength)
+
+                    if left_speed > speed:
+                        print("L >")
+                        print(f"{left_speed} > {speed}")
+
+                        m_left.duty(blind_duty + turn_strength)
+
+                    if left_speed < speed:
+                        print("L <")
+                        print(f"{left_speed} < {speed}")
+
+                        m_left.duty(blind_duty + turn_strength)
+
+                toggle = not toggle  # Switch between functions
+
+    else:
+        while just_drive:
+            if toggle: # will enter this loop first, then every other time
+                avg_wheel_speed()
+            else: # will enter this loop every second time
+                m_left.set_forwards()
+                m_right.set_forwards()
+                m_left.duty(blind_duty)
+                m_right.duty(blind_duty)
+
+                if right_speed > speed - turn_strength:
+                    print("R >")
+                    print(f"{right_speed} > {speed}")
+
+                    m_right.duty(blind_duty - speed_correction)
+                    #blind_duty -= speed_correction
+
+                if right_speed < speed - turn_strength:
+                    print("R <")
+                    print(f"{right_speed} < {speed}")
+
+                    m_right.duty(blind_duty + speed_correction)
+                    #blind_duty -= speed_correction
+
+                if left_speed > speed + turn_strength:
+                    print("L >")
+                    print(f"{left_speed} > {speed}")
+
+                    m_left.duty(blind_duty - speed_correction)
+                    #blind_duty += speed_correction
+
+                if left_speed < speed + turn_strength:
+                    print("L <")
+                    print(f"{left_speed} < {speed}")
+
+                    m_left.duty(blind_duty + speed_correction)
+                    #blind_duty += speed_correction
+
+            # THIS IS A CHECK FOR IF A NEW LOOP STARTS IN THE MAIN LOOP
+            if last_cmd == "M" and line_sensor_M.value() == 0:
+                print("M sensor off")
+                just_drive = False
+
+            elif last_cmd == "R" and line_sensor_R.value() == 0:
+                print("R sensor off")
+                just_drive = False
+
+            elif last_cmd == "L" and line_sensor_L.value() == 0:
+                print("L sensor off")
+                just_drive = False
+
+
+            elif last_cmd == "rR" and line_sensor_R.value() == 1:
+                print("found line on R")
+                just_drive = False
+            elif last_cmd == "rL" and line_sensor_L.value() == 1:
+                print("found line on L")
+                just_drive = False
+
+
+            else:
+             toggle = not toggle  # Switch between functions
+
+# MAIN LOOP
+def main_loop():
+    global new_loop_started, line_sensor_value, last_cmd
+    enc.clear_count()  # Reset the encoder to zero
+    #global example
+    #print(example)
+    while ok_to_run:
+        screen_show("searching...")
+        print("searching...")
+
+        # new_loop_started = False
+
+        while line_sensor_M.value() == 1:
+            line_sensor_value = line_sensor_M.value()
+            screen_show("driving forwards")
+            print("driving forwards")
+            last_cmd = "M"
+            motor_drive(SP, 0, None)
+            #print(example)
+
+        while line_sensor_L.value() == 1:
+            line_sensor_value = line_sensor_L.value()
+            screen_show("turning left")
+            print("turning left")
+            last_cmd = "L"
+            motor_drive(SP, -TS, None)
+            #print(example)
+
+        while line_sensor_R.value() == 1:
+            line_sensor_value = line_sensor_L.value()
+            screen_show("turning right")
+            print("turning right")
+            last_cmd = "R"
+            motor_drive(SP, TS, None)
+            #print(example)
+
+        while line_sensor_R.value() == 0 and line_sensor_L.value() == 0 and line_sensor_M.value() == 0:
+
+            if last_cmd == "R":
+                last_cmd = "rR"
+                screen_show("remember - R")
+                print("remember - R")
+                motor_drive(SP, TS, None)
+
+            if last_cmd == "L":
+                last_cmd = "rL"
+                screen_show("remember - L")
+                print("remember - L")
+                motor_drive(SP, -TS, None)
+            #print(example) # for luke's milestone
+
+#thread1 = _thread.start_new_thread(Ultrasonic_background_scanning, ()) #start process on second thread
+main_loop() #run main loop on first thread
+
+
+
