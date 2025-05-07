@@ -1,9 +1,3 @@
-def center_robot_between_walls():
-    angle_left = 170
-    angle_right = 34
-    angle_front = 90
-    tolerance = 10  # mm tolerance for equality
-
 def get_distance_at_angle(angle):
     set_servo_ang(angle)
     sleep(0.4)  # allow servo to reach position and ultrasonic to settle
@@ -16,8 +10,12 @@ def rightsideangle():
         set_servo_ang(front + 2*i)
         right_angle_list.append(ultrasonic.distancemm)
     return min(right_angle_list)
-    
-            
+
+def center_robot_between_walls():
+    angle_left = 170
+    angle_right = 34
+    angle_front = 90
+    tolerance = 10  # mm tolerance for equality
 
     iteration = 0
     while True:
