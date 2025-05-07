@@ -1,0 +1,66 @@
+def center_robot_between_walls():
+    angle_left = 170
+    angle_right = 34
+    angle_front = 90
+    tolerance = 10  # mm tolerance for equality
+
+def get_distance_at_angle(angle):
+    set_servo_ang(angle)
+    sleep(0.4)  # allow servo to reach position and ultrasonic to settle
+    d = ultrasonic_sensor.distance_mm()
+    return d if d > 0 else 9999  # ignore bad readings
+def rightsideangle():
+    set_servo_ang(front)
+    right_angle_list = []
+    for i in range(45):
+        set_servo_ang(front + 2*i)
+        right_angle_list.append(ultrasonic.distancemm)
+    return min(right_angle_list)
+    
+            
+
+    iteration = 0
+    while True:
+        iteration += 1
+        print(f"Centering iteration {iteration}")
+        screen_show("checking walls...")
+
+        # Step 1: Look left and right
+        dist_left = get_distance_at_angle(angle_left)
+        dist_right = get_distance_at_angle(angle_right)
+
+        # Step 2: Compare distances
+        diff = abs(dist_left - dist_right)
+
+        # Step 3: If approximately equal, stop
+        if diff < tolerance:
+            screen_show("centered!")
+            print("Robot is centered between walls.")
+            motor_stop()
+            break
+
+        # Step 4: Determine direction to move
+        if dist_left > dist_right:
+            direction = -1  # turn left
+            screen_show("turning left")
+        else:
+            direction = 1   # turn right
+            screen_show("turning right")
+
+        # Step 5: Face the further wall
+        Motor_Speed(0, speed, TS)
+        sleep(0.5)
+        motor_stop()
+
+        # Step 6: Drive half the difference toward the center
+        screen_show("driving to center")
+        # Assuming 1s of Drive(2, 0, 1) moves approx. 20mm — adjust for real distance
+        time_to_drive = (diff / 2) / 20.0  # convert mm to duration (20 mm/sec)
+        Drive(2, 0, time_to_drive)
+
+        # Step 7: Reorient to face original direction
+        Motor_Speed(0, -direction * TS)
+        sleep(0.5)
+        motor_stop()
+
+        # Step 8: Check again in next loop
