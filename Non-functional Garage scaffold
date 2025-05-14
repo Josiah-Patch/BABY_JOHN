@@ -1,0 +1,55 @@
+hallway_active = True  # This flag tracks if the hallway logic is currently active
+
+
+def is_wall_ahead(threshold=100):
+    d = ultrasonic_sensor.distance_mm()
+    return d < threshold and d > 0
+
+
+def is_wall_left():
+    set_servo_ang(170)
+    sleep(0.3)
+    d = ultrasonic_sensor.distance_mm()
+    return d < 100 and d > 0
+
+
+def is_wall_right():
+    set_servo_ang(34)
+    sleep(0.3)
+    d = ultrasonic_sensor.distance_mm()
+    return d < 100 and d > 0
+
+
+def is_over_line():
+    return line_sensor_L.value() == 1 or line_sensor_M.value() == 1 or line_sensor_R.value() == 1
+
+
+def check_for_garage():
+    global hallway_active
+    if hallway_active and is_wall_ahead():
+        motor_stop()
+        print("Obstacle detected ahead.")
+        screen_show("Obstacle ahead")
+
+        # Check for walls on the left and right
+        wall_left = is_wall_left()
+        wall_right = is_wall_right()
+
+        # Reset servo to front
+        set_servo_ang(90)
+
+        if wall_left and wall_right:
+            print("Walls detected on left and right.")
+            screen_show("Walls L & R")
+
+            if not is_over_line():
+                print("No line under robot.")
+                screen_show("Garage detected")
+                hallway_active = False  # Stop hallway behavior
+                motor_stop()
+                return True
+            else:
+                print("Line detected. Not in garage.")
+        else:
+            print("Not surrounded by walls.")
+    return False
