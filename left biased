@@ -498,12 +498,19 @@ def main_loop():
             motor_speed(SP, TS)
 
 
-        while line_sensor_M.value() == 1 and Obstacle != True and line_sensor_R.value() != 1:
+                while line_sensor_L.value() == 1 and line_sensor_M.value() == 1 and line_sensor_R.value() == 1 and Obstacle != True:
+            line_sensor_value = line_sensor_L.value()
+            screen_show("turning left")
+            print("turning left")
+            last_cmd = "L"
+            motor_speed(SP, -TS)
+
+        while line_sensor_M.value() == 1 and Obstacle != True:
             line_sensor_value = line_sensor_M.value()
             screen_show("driving forwards")
             print("driving forwards")
             last_cmd = "M"
-            motor_speed(SP+5, 0)
+            motor_speed(SP+5, -5)
 
         while line_sensor_L.value() == 1 and Obstacle != True:
             line_sensor_value = line_sensor_L.value()
