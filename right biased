@@ -12,7 +12,7 @@ import _thread
 import time
 
 # USER VARIABLES
-SP = 21  #"speed" [cm/s when used in motor_drive()] GOOD VALUES: 21, 21
+SP = 19  #"speed" [cm/s when used in motor_drive()] GOOD VALUES: 21, 21
 TS = 19 #turn strength GOOD VALUES: 19, 19
 TA = 50 #turn aggression [motor duty for turn_on_spot()]
 adjustment = 1
@@ -492,7 +492,7 @@ def main_loop():
         #RIGHT-BIASED RUN
         if count == 1:
             screen_show("RIGHT-BIASED")
-            sleep(1.3)
+            sleep(1.1)
             turn_on_spot("RIGHT",TA,0.1)
             count+=1
             last_cmd = "L"
